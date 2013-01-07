@@ -1,9 +1,9 @@
-from httplib2 import Http
 from urllib import urlencode
 import json
-from copy import copy
 
-PIPEDRIVE_API_URL = "https://api.pipedrive.com/1.0/"
+import requests
+
+PIPEDRIVE_API_URL = "https://api.pipedrive.com/v1/"
 
 class PipedriveError(Exception):
     def __init__(self, response):
@@ -15,16 +15,30 @@ class IncorrectLoginError(PipedriveError):
     pass
 
 class Pipedrive(object):
-    def _request(self, endpoint, data, method="POST"):
-        if self.api_token:
-            data = copy(data)
-            data['api_token'] = self.api_token
-        response, data = self.http.request(PIPEDRIVE_API_URL + endpoint, method=method, body=urlencode(data), headers={'Content-Type': 'application/x-www-form-urlencoded'})
+    def _request(self, endpoint, data=None, method="get"):
+        if not method in ('get', 'post', 'put', 'delete', 'options', 'headers'):
+            raise
 
-        return json.loads(data)
+        request_action = getattr(requests, method)
+
+        if not data: data = dict()
+
+        if self.api_token:
+            data.update({'api_token' : self.api_token})
+
+        kwargs = dict()
+
+        if data:
+            if method in ('post', 'put',):
+                kwargs.update({'data' : data})
+            else:
+                kwargs.update({'params' : data})
+
+        response = request_action(PIPEDRIVE_API_URL + endpoint, **kwargs)
+
+        return json.loads(response.text)
 
     def __init__(self, login, password = None):
-        self.http = Http()
         if password:
             response = self._request("/auth/login", {"login": login, "password": password})
 
@@ -37,9 +51,24 @@ class Pipedrive(object):
             self.api_token = login
 
     def __getattr__(self, name):
-        def wrapper(data):
-            response = self._request(name.replace('_', '/'), data)
+        def wrapper(id=None, attribute=None, data=None):
+            names = name.split('_')
+            method = 'get'
+
+            if names[0] in ('get', 'post', 'put', 'delete'):
+                method = names[0]
+                names = names[1:]
+
+            if id:
+                names.append(str(id))
+
+            if attribute:
+                names.append(str(attribute))
+
+            response = self._request('/'.join(names), data, method)
+
             if 'error' in response:
                 raise PipedriveError(response)
+
             return response
         return wrapper
