@@ -6,7 +6,7 @@ setup(
     license="MIT",
 
     install_requires = [
-        "httplib2",
+        "requests==0.14.2",
     ],
 
     description='Light wrapper around Pipedrive API',

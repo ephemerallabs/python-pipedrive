@@ -15,26 +15,23 @@ class IncorrectLoginError(PipedriveError):
     pass
 
 class Pipedrive(object):
-    def _request(self, endpoint, data=None, method="get"):
+    def _request(self, endpoint, params, data=None, method="get"):
         if not method in ('get', 'post', 'put', 'delete', 'options', 'headers'):
             raise
 
         request_action = getattr(requests, method)
 
-        if not data: data = dict()
+        if not params: params = dict()
 
         if self.api_token:
-            data.update({'api_token' : self.api_token})
+            params.update({'api_token' : self.api_token})
 
         kwargs = dict()
 
-        if data:
-            if method in ('post', 'put',):
-                kwargs.update({'data' : data})
-            else:
-                kwargs.update({'params' : data})
+        if data and method in ('post', 'put',):
+            kwargs.update({'data' : data})
 
-        response = request_action(PIPEDRIVE_API_URL + endpoint, **kwargs)
+        response = request_action(PIPEDRIVE_API_URL + endpoint, params=params, **kwargs)
 
         return json.loads(response.text)
 
@@ -51,7 +48,7 @@ class Pipedrive(object):
             self.api_token = login
 
     def __getattr__(self, name):
-        def wrapper(id=None, attribute=None, data=None):
+        def wrapper(id=None, attribute=None, data=None, params=None):
             names = name.split('_')
             method = 'get'
 
@@ -65,7 +62,7 @@ class Pipedrive(object):
             if attribute:
                 names.append(str(attribute))
 
-            response = self._request('/'.join(names), data, method)
+            response = self._request('/'.join(names), params, data, method)
 
             if 'error' in response:
                 raise PipedriveError(response)
